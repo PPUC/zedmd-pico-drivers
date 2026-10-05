@@ -601,10 +601,10 @@ void Hub75::start(irq_handler_t handler) {
         }
 
         float data_clkdiv = panel_data_clkdiv(width);
-        pio_sm_set_clkdiv(pio, sm_data, data_clkdiv * 2);
+        pio_sm_set_clkdiv(pio, sm_data, data_clkdiv);
         pio_sm_set_clkdiv(pio, sm_row, data_clkdiv);
         if (split_controls) {
-            pio_sm_set_clkdiv(pio, sm_data_b, data_clkdiv * 2);
+            pio_sm_set_clkdiv(pio, sm_data_b, data_clkdiv);
             pio_sm_set_clkdiv(pio, sm_row_b, data_clkdiv);
         }
 
@@ -897,7 +897,7 @@ void Hub75::dma_complete() {
 }
 
 uint32_t Hub75::encode_row_payload(uint row, uint bit) const {
-    uint32_t oe_width = brightness << bit;
+    uint32_t oe_width = ((brightness + 1) << bit) >> 1;
 #if HUB75_LATCH_BLANKING > 0
     const uint32_t blank = (uint32_t)HUB75_LATCH_BLANKING * 2u;
     oe_width = oe_width > blank ? oe_width - blank : 1u;
