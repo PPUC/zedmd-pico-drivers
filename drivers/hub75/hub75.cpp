@@ -904,7 +904,6 @@ uint32_t Hub75::encode_row_payload(uint row, uint bit) const {
 #else
     uint32_t oe_width = brightness << bit;
 #endif
-    // ^ Used to be uint32_t oe_width = brightness << bit;
 #if HUB75_LATCH_BLANKING > 0
     const uint32_t blank = (uint32_t)HUB75_LATCH_BLANKING * 2u;
     oe_width = oe_width > blank ? oe_width - blank : 1u;
