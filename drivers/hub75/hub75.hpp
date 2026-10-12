@@ -64,6 +64,16 @@
 #define HUB75_OE2 HUB75_OE
 #endif
 
+// SD (128x32) has received a brightness shift because it could become
+// too bright on a scale of 1 to 10. However, 192x64 and 256x64 were
+// on the correct 1 to 10 scale in terms of average brightness.
+// If ZeDMD is XL/HD, keep the original brightness curve.
+#if defined(ZEDMD_HD) || defined(ZEDMD_XL)
+#define LOWER_BASE_BRIGHTNESS 0
+#else
+#define LOWER_BASE_BRIGHTNESS 1
+#endif
+
 // OE blanking cycles subtracted from each bit-plane pulse.
 // Increase to hide latch transitions on panels that ghost around LAT/OE.
 #ifndef HUB75_LATCH_BLANKING
