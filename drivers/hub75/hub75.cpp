@@ -11,6 +11,10 @@ namespace pimoroni {
 
 namespace {
 
+// Gamma LUT with the colour-order shift already applied (3 KB RAM).
+// Shared by all Hub75 instances (assumes a single panel / lut_table).
+uint32_t s_lut_r[256], s_lut_g[256], s_lut_b[256];
+
 void set_all_data_pins(const Hub75 &hub75, bool value) {
     gpio_put(hub75.pin_r0, value);
     gpio_put(hub75.pin_g0, value);
@@ -169,6 +173,22 @@ Hub75::Hub75(uint width, uint height, Pixel *buffer, bool inverted_stb, COLOR_OR
             break;
 
     }
+
+    // We want to load these into RAM as they are used in hot loops. 
+    // Consumes about 3KB, though the processing improvement makes up for it.
+    for (uint i = 0; i < 256; i++) {
+        s_lut_r[i] = (uint32_t)lut_table[i] << r_shift;
+        s_lut_g[i] = (uint32_t)lut_table[i] << g_shift;
+        s_lut_b[i] = (uint32_t)lut_table[i] << b_shift;
+    }
+}
+
+int inline __attribute__((always_inline)) Hub75::buffer_offset(uint x, uint y) const {
+    if(y >= height / 2) {
+        y -= height / 2;
+        return (y * width + x) * 2 + 1;
+    }
+    return (y * width + x) * 2;
 }
 
 void Hub75::set_color(uint x, uint y, Pixel c) {
@@ -178,7 +198,7 @@ void Hub75::set_color(uint x, uint y, Pixel c) {
 
 void Hub75::set_pixel(uint x, uint y, uint8_t r, uint8_t g, uint8_t b) {
     if(x >= width || y >= height) return;
-    draw_back_buffer[buffer_offset(x, y)] = (lut_table[b] << b_shift) | (lut_table[g] << g_shift) | (lut_table[r] << r_shift);
+    draw_back_buffer[buffer_offset(x, y)] = s_lut_r[r] | s_lut_g[g] | s_lut_b[b];
 }
 
 void Hub75::FM6126A_write_register(uint16_t value, uint8_t position) {
@@ -923,14 +943,6 @@ uint32_t Hub75::encode_row_payload(uint row, uint bit) const {
     return row | (oe_width << 5);
 }
 
-int Hub75::buffer_offset(uint x, uint y) const {
-    if(y >= height / 2) {
-        y -= height / 2;
-        return (y * width + x) * 2 + 1;
-    }
-    return (y * width + x) * 2;
-}
-
 uint Hub75::panel_width() const {
     return split_controls ? width / 2 : width;
 }
@@ -989,7 +1001,7 @@ void Hub75::copy_to_back_buffer(void *data, size_t len, int start_x, int start_y
                 }
                 int offset = offsety + sx * 2;
 
-                draw_back_buffer[offset] = (lut_table[b] << b_shift) | (lut_table[g] << g_shift) | (lut_table[r] << r_shift);
+                draw_back_buffer[offset] = s_lut_r[r] | s_lut_g[g] | s_lut_b[b];
 
                 // Skip the empty byte in out 32-bit aligned 24-bit colour.
                 p++;
@@ -1013,7 +1025,7 @@ void Hub75::copy_to_back_buffer(void *data, size_t len, int start_x, int start_y
 
                 offset = buffer_offset(sx, sy);
 
-                draw_back_buffer[offset] = (lut_table[b] << b_shift) | (lut_table[g] << g_shift) | (lut_table[r] << r_shift);
+                draw_back_buffer[offset] = s_lut_r[r] | s_lut_g[g] | s_lut_b[b];
 
                 // Skip the empty byte in out 32-bit aligned 24-bit colour.
                 p++;
