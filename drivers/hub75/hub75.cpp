@@ -619,12 +619,6 @@ void Hub75::start(irq_handler_t handler) {
         uint latch_cycles = latch_cycles_for_system_clock(width);
         shiftreg_delay = shiftreg_delay_cycles();
 
-#if HUB75_PROFILE_PIN_ISR >= 0
-        gpio_init(HUB75_PROFILE_PIN_ISR);
-        gpio_set_dir(HUB75_PROFILE_PIN_ISR, true);
-        gpio_put(HUB75_PROFILE_PIN_ISR, 0);
-#endif
-
         if (uses_gpio_serial_decoder(*this)) {
             // GPIO-stepped serial row decoders keep row selection outside the row PIO program.
             init_shiftreg_rows();
@@ -935,9 +929,6 @@ void Hub75::clear() {
 
 
 void __not_in_flash_func(Hub75::dma_complete)() {
-#if HUB75_PROFILE_PIN_ISR >= 0
-    gpio_put(HUB75_PROFILE_PIN_ISR, 1);
-#endif
     if (!split_controls && dma_channel_get_irq0_status(dma_channel)) {
         dma_channel_acknowledge_irq0(dma_channel);
 
@@ -1059,9 +1050,6 @@ void __not_in_flash_func(Hub75::dma_complete)() {
             break;
         }
     }
-#if HUB75_PROFILE_PIN_ISR >= 0
-    gpio_put(HUB75_PROFILE_PIN_ISR, 0);
-#endif
 }
 
 uint32_t __not_in_flash_func(Hub75::encode_row_payload)(uint row, uint bit) const {

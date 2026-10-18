@@ -80,12 +80,6 @@
 #define HUB75_LATCH_BLANKING 0
 #endif
 
-// Optional logic analyzer marker: this GPIO is high while dma_complete() runs.
-// Leave undefined (or -1) to disable.
-#ifndef HUB75_PROFILE_PIN_ISR
-#define HUB75_PROFILE_PIN_ISR -1
-#endif
-
 namespace pimoroni {
 const uint DATA_BASE_PIN = HUB75_R0;
 const uint DATA_N_PINS = 6;
@@ -274,8 +268,7 @@ class Hub75 {
     void fill_rect(uint x, uint y, uint w, uint h, uint8_t r, uint8_t g, uint8_t b);
 
     // Declares that the caller redraws every pixel before the next flip() or
-    // render(), so a stale draw buffer needs no sync. Allows splitting a full
-    // frame into partial draw_rgb565() calls, e.g. one per core.
+    // render(), so a stale draw buffer needs no sync.
     void begin_frame();
 
     // Swap draw and render buffers at the next refresh boundary instead of
