@@ -171,6 +171,14 @@ Hub75::Hub75(uint width, uint height, Pixel *buffer, bool inverted_stb, COLOR_OR
     }
 }
 
+int inline __attribute__((always_inline)) Hub75::buffer_offset(uint x, uint y) const {
+    if(y >= height / 2) {
+        y -= height / 2;
+        return (y * width + x) * 2 + 1;
+    }
+    return (y * width + x) * 2;
+}
+
 void Hub75::set_color(uint x, uint y, Pixel c) {
     if(x >= width || y >= height) return;
     draw_back_buffer[buffer_offset(x, y)] = c;
@@ -921,14 +929,6 @@ uint32_t Hub75::encode_row_payload(uint row, uint bit) const {
     }
 
     return row | (oe_width << 5);
-}
-
-int Hub75::buffer_offset(uint x, uint y) const {
-    if(y >= height / 2) {
-        y -= height / 2;
-        return (y * width + x) * 2 + 1;
-    }
-    return (y * width + x) * 2;
 }
 
 uint Hub75::panel_width() const {
