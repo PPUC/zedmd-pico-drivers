@@ -69,6 +69,11 @@ uint32_t shiftreg_delay_cycles() {
     return std::max<uint32_t>(8u, (uint32_t)(((uint64_t)system_clock_hz() * 8u + 124999999u) / 125000000u));
 }
 
+// Small setup/hold delay for GPIO-driven serial row decoder updates.
+inline void shiftreg_timing_delay() {
+    busy_wait_at_least_cycles(shiftreg_delay_cycles());
+}
+
 float panel_data_clkdiv(uint width) {
     float target_hz = 125000000.0f;
 
@@ -586,14 +591,13 @@ void Hub75::init_shiftreg_rows() {
 
 void __not_in_flash_func(Hub75::step_shiftreg_row)(uint row) const {
     // Seed the shift register when wrapping back to row 0, otherwise shift in 0s.
-    // shiftreg_delay is cached in start() to keep clock queries out of the ISR.
     gpio_put(pin_row_b, 1);
     gpio_put(pin_row_c, row == 0);
-    busy_wait_at_least_cycles(shiftreg_delay);
+    shiftreg_timing_delay();
     gpio_put(pin_row_a, 1);
-    busy_wait_at_least_cycles(shiftreg_delay);
+    shiftreg_timing_delay();
     gpio_put(pin_row_a, 0);
-    busy_wait_at_least_cycles(shiftreg_delay);
+    shiftreg_timing_delay();
     gpio_put(pin_row_b, 0);
     if (row == 0) {
         gpio_put(pin_row_c, 0);
@@ -617,8 +621,6 @@ void Hub75::start(irq_handler_t handler) {
         }
 
         uint latch_cycles = latch_cycles_for_system_clock(width);
-        shiftreg_delay = shiftreg_delay_cycles();
-
         if (uses_gpio_serial_decoder(*this)) {
             // GPIO-stepped serial row decoders keep row selection outside the row PIO program.
             init_shiftreg_rows();
