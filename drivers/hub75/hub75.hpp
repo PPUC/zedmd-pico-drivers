@@ -199,8 +199,6 @@ class Hub75 {
     // After a flip the draw buffer holds an older frame until it is fully
     // redrawn or synced from the visible frame. Only touched outside the ISR.
     bool draw_stale = false;
-    // Setup/hold delay for GPIO-stepped row decoders, cached by start().
-    uint32_t shiftreg_delay = 8;
 
     // Top half of display - 16 rows on a 32x32 panel
     unsigned int pin_r0 = HUB75_R0;
