@@ -80,6 +80,14 @@
 #define HUB75_LATCH_BLANKING 0
 #endif
 
+// Setup/hold time for each edge of the GPIO-stepped serial row decoders
+// (SM5266P/SM5368P), in cycles at a 266MHz clk_sys. Scaled to the actual clk_sys.
+// Too low makes the row clock skip or double-step, which shows up as a
+// waving/rolling image on a camera.
+#ifndef HUB75_SHIFTREG_DELAY_CYCLES
+#define HUB75_SHIFTREG_DELAY_CYCLES 170
+#endif
+
 namespace pimoroni {
 const uint DATA_BASE_PIN = HUB75_R0;
 const uint DATA_N_PINS = 6;
