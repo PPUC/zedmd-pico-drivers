@@ -87,6 +87,13 @@ uint32_t latch_cycles_for_system_clock(uint width) {
     return std::max<uint32_t>(1u, static_cast<uint32_t>(cycles));
 }
 
+// Row delay for the serial row PIO program, which holds each row state for
+// delay + 4 cycles. Aim for at least 64ns (8 cycles at 125MHz).
+uint32_t serial_row_delay_for_system_clock(uint width) {
+    float cycles = std::ceil((system_clock_hz() / 15625000.0f) / panel_data_clkdiv(width));
+    return cycles > 4.0f ? static_cast<uint32_t>(cycles) - 4u : 0u;
+}
+
 uint range_min(std::initializer_list<uint> pins) {
     return *std::min_element(pins.begin(), pins.end());
 }
@@ -586,6 +593,7 @@ void Hub75::start(irq_handler_t handler) {
         }
 
         uint latch_cycles = latch_cycles_for_system_clock(width);
+        uint serial_row_delay = serial_row_delay_for_system_clock(width);
 
         uint data_range_base = DATA_BASE_PIN;
         uint data_range_count = DATA_N_PINS;
@@ -675,9 +683,9 @@ void Hub75::start(irq_handler_t handler) {
         }
         if (uses_serial_row_decoder(*this)) {
             if (uses_dp3246_scan_path(*this)) {
-                hub75_row_serial_dp3246_program_init(pio, sm_row, row_prog_offs, pin_row_a, pin_stb);
+                hub75_row_serial_dp3246_program_init(pio, sm_row, row_prog_offs, pin_row_a, pin_stb, serial_row_delay);
             } else {
-                hub75_row_serial_program_init(pio, sm_row, row_prog_offs, pin_row_a, pin_stb);
+                hub75_row_serial_program_init(pio, sm_row, row_prog_offs, pin_row_a, pin_stb, serial_row_delay);
             }
         } else if (line_decoder == LINE_DECODER_TYPE595) {
             if (uses_dp3246_scan_path(*this)) {
@@ -697,9 +705,9 @@ void Hub75::start(irq_handler_t handler) {
             }
             if (uses_serial_row_decoder(*this)) {
                 if (uses_dp3246_scan_path(*this)) {
-                    hub75_row_serial_dp3246_program_init(pio, sm_row_b, row_prog_offs, pin_row_a, pin_stb2);
+                    hub75_row_serial_dp3246_program_init(pio, sm_row_b, row_prog_offs, pin_row_a, pin_stb2, serial_row_delay);
                 } else {
-                    hub75_row_serial_program_init(pio, sm_row_b, row_prog_offs, pin_row_a, pin_stb2);
+                    hub75_row_serial_program_init(pio, sm_row_b, row_prog_offs, pin_row_a, pin_stb2, serial_row_delay);
                 }
             } else if (line_decoder == LINE_DECODER_TYPE595) {
                 if (uses_dp3246_scan_path(*this)) {
@@ -1015,13 +1023,14 @@ uint32_t __not_in_flash_func(Hub75::encode_row_payload)(uint row, uint bit, bool
 
     if (uses_serial_row_decoder(*this)) {
         if (!step_serial_row) {
-            return oe_width << 9;
+            return oe_width << 12;
         }
         // Seed the shift register when wrapping back to row 0, otherwise shift in 0s.
+        // The fourth row state (bits 9-11) stays 0 to release BK and row data.
         uint32_t row_data = row == 0 ? 1u : 0u;
         uint32_t shift_low = (1u << 1) | (row_data << 2);
         uint32_t shift_high = shift_low | 1u;
-        return shift_low | (shift_high << 3) | (shift_low << 6) | (oe_width << 9);
+        return shift_low | (shift_high << 3) | (shift_low << 6) | (oe_width << 12);
     }
 
     return row | (oe_width << 5);
