@@ -37,8 +37,8 @@ What we learned:
 
 ## Current method
 
-- `HUB75_SHIFTREG_DELAY_CYCLES` (default 345) sets the hold time per edge
-  **in cycles at 266 MHz**, about 1.30 µs. `shiftreg_delay_cycles()` scales it
+- `HUB75_SHIFTREG_DELAY_CYCLES` (default 170) sets the hold time per edge
+  **in cycles at 266 MHz**, about 0.64 µs. `shiftreg_delay_cycles()` scales it
   to the actual `clk_sys`, so the time stays the same at any clock speed.
   The minimum is 8 cycles.
 - `start()` caches the value in `shiftreg_delay`, which keeps clock queries
@@ -58,5 +58,5 @@ build_flags = -D HUB75_SHIFTREG_DELAY_CYCLES=200
 
 The real minimum is somewhere between about 20 and 340 cycles at 266 MHz.
 Lowering it shortens the time each row is blanked. If the image starts to roll,
-raise it again. 345 cycles (about 1.30 µs per edge) gave the best result, so it
+raise it again. 170 cycles (about 0.64 µs per edge) gave the best result, so it
 is the default.

@@ -85,7 +85,7 @@
 // Too low makes the row clock skip or double-step, which shows up as a
 // waving/rolling image on a camera.
 #ifndef HUB75_SHIFTREG_DELAY_CYCLES
-#define HUB75_SHIFTREG_DELAY_CYCLES 345
+#define HUB75_SHIFTREG_DELAY_CYCLES 170
 #endif
 
 namespace pimoroni {
