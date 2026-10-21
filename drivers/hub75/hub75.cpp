@@ -65,10 +65,6 @@ uint32_t system_clock_hz() {
     return clock_get_hz(clk_sys);
 }
 
-uint32_t shiftreg_delay_cycles() {
-    return std::max<uint32_t>(8u, (uint32_t)(((uint64_t)system_clock_hz() * 8u + 124999999u) / 125000000u));
-}
-
 float panel_data_clkdiv(uint width) {
     float target_hz = 125000000.0f;
 
@@ -103,7 +99,7 @@ bool __not_in_flash_func(uses_dp3246_scan_path)(const Hub75 &hub75) {
     return hub75.shift_driver == SHIFT_DRIVER_DP3246;
 }
 
-bool __not_in_flash_func(uses_gpio_serial_decoder)(const Hub75 &hub75) {
+bool __not_in_flash_func(uses_serial_row_decoder)(const Hub75 &hub75) {
     return hub75.line_decoder == LINE_DECODER_SM5266P || hub75.line_decoder == LINE_DECODER_SM5368P;
 }
 
@@ -573,32 +569,6 @@ void Hub75::RUL6024_setup() {
     }
 }
 
-void Hub75::init_shiftreg_rows() {
-    // SM5266P/SM5368PF-style row decoders use A=row clock, B=BK, C=row data.
-    gpio_init(pin_row_a); gpio_set_function(pin_row_a, GPIO_FUNC_SIO); gpio_set_dir(pin_row_a, true);
-    gpio_init(pin_row_b); gpio_set_function(pin_row_b, GPIO_FUNC_SIO); gpio_set_dir(pin_row_b, true);
-    gpio_init(pin_row_c); gpio_set_function(pin_row_c, GPIO_FUNC_SIO); gpio_set_dir(pin_row_c, true);
-
-    gpio_put(pin_row_a, 0);
-    gpio_put(pin_row_b, 0);
-    gpio_put(pin_row_c, 0);
-}
-
-void __not_in_flash_func(Hub75::step_shiftreg_row)(uint row) const {
-    // Seed the shift register when wrapping back to row 0, otherwise shift in 0s.
-    gpio_put(pin_row_b, 1);
-    gpio_put(pin_row_c, row == 0);
-    busy_wait_at_least_cycles(shiftreg_delay_cycles());
-    gpio_put(pin_row_a, 1);
-    busy_wait_at_least_cycles(shiftreg_delay_cycles());
-    gpio_put(pin_row_a, 0);
-    busy_wait_at_least_cycles(shiftreg_delay_cycles());
-    gpio_put(pin_row_b, 0);
-    if (row == 0) {
-        gpio_put(pin_row_c, 0);
-    }
-}
-
 void Hub75::start(irq_handler_t handler) {
     if(handler) {
         switch (shift_driver) {
@@ -617,13 +587,6 @@ void Hub75::start(irq_handler_t handler) {
 
         uint latch_cycles = latch_cycles_for_system_clock(width);
 
-        if (uses_gpio_serial_decoder(*this)) {
-            // GPIO-stepped serial row decoders keep row selection outside the row PIO program.
-            init_shiftreg_rows();
-            step_shiftreg_row(0);
-            shiftreg_row_preloaded = true;
-        }
-
         uint data_range_base = DATA_BASE_PIN;
         uint data_range_count = DATA_N_PINS;
         uint row_range_base = ROWSEL_BASE_PIN;
@@ -633,10 +596,7 @@ void Hub75::start(irq_handler_t handler) {
             data_range_base = range_min({DATA_BASE_PIN, pin_clk, pin_clk2});
             data_range_count = range_max({DATA_BASE_PIN + DATA_N_PINS - 1, pin_clk, pin_clk2}) - data_range_base + 1;
 
-            if (uses_gpio_serial_decoder(*this)) {
-                row_range_base = range_min({pin_stb, pin_stb + 1, pin_stb2, pin_stb2 + 1});
-                row_range_count = range_max({pin_stb, pin_stb + 1, pin_stb2, pin_stb2 + 1}) - row_range_base + 1;
-            } else if (line_decoder == LINE_DECODER_TYPE595) {
+            if (uses_serial_row_decoder(*this) || line_decoder == LINE_DECODER_TYPE595) {
                 row_range_base = range_min({pin_row_a, pin_row_a + 2, pin_stb, pin_stb + 1, pin_stb2, pin_stb2 + 1});
                 row_range_count = range_max({pin_row_a, pin_row_a + 2, pin_stb, pin_stb + 1, pin_stb2, pin_stb2 + 1}) - row_range_base + 1;
             } else {
@@ -653,20 +613,20 @@ void Hub75::start(irq_handler_t handler) {
               &data_prog_offs, data_range_base, data_range_count, true);
         }
 
-        if (uses_gpio_serial_decoder(*this)) {
+        if (uses_serial_row_decoder(*this)) {
             if (uses_dp3246_scan_path(*this)) {
                 if (inverted_stb) {
-                    pio_claim_free_sm_and_add_program_for_gpio_range(&hub75_row_noaddr_dp3246_inverted_program, &pio, &sm_row,
+                    pio_claim_free_sm_and_add_program_for_gpio_range(&hub75_row_serial_dp3246_inverted_program, &pio, &sm_row,
                       &row_prog_offs, row_range_base, row_range_count, true);
                 } else {
-                    pio_claim_free_sm_and_add_program_for_gpio_range(&hub75_row_noaddr_dp3246_program, &pio, &sm_row,
+                    pio_claim_free_sm_and_add_program_for_gpio_range(&hub75_row_serial_dp3246_program, &pio, &sm_row,
                       &row_prog_offs, row_range_base, row_range_count, true);
                 }
             } else if (inverted_stb) {
-                pio_claim_free_sm_and_add_program_for_gpio_range(&hub75_row_noaddr_inverted_program, &pio, &sm_row,
+                pio_claim_free_sm_and_add_program_for_gpio_range(&hub75_row_serial_inverted_program, &pio, &sm_row,
                   &row_prog_offs, row_range_base, row_range_count, true);
             } else {
-                pio_claim_free_sm_and_add_program_for_gpio_range(&hub75_row_noaddr_program, &pio, &sm_row,
+                pio_claim_free_sm_and_add_program_for_gpio_range(&hub75_row_serial_program, &pio, &sm_row,
                   &row_prog_offs, row_range_base, row_range_count, true);
             }
         } else if (line_decoder == LINE_DECODER_TYPE595) {
@@ -713,11 +673,11 @@ void Hub75::start(irq_handler_t handler) {
         } else {
             hub75_data_rgb888_program_init(pio, sm_data, data_prog_offs, DATA_BASE_PIN, pin_clk);
         }
-        if (uses_gpio_serial_decoder(*this)) {
+        if (uses_serial_row_decoder(*this)) {
             if (uses_dp3246_scan_path(*this)) {
-                hub75_row_noaddr_dp3246_program_init(pio, sm_row, row_prog_offs, pin_stb);
+                hub75_row_serial_dp3246_program_init(pio, sm_row, row_prog_offs, pin_row_a, pin_stb);
             } else {
-                hub75_row_noaddr_program_init(pio, sm_row, row_prog_offs, pin_stb);
+                hub75_row_serial_program_init(pio, sm_row, row_prog_offs, pin_row_a, pin_stb);
             }
         } else if (line_decoder == LINE_DECODER_TYPE595) {
             if (uses_dp3246_scan_path(*this)) {
@@ -735,11 +695,11 @@ void Hub75::start(irq_handler_t handler) {
             } else {
                 hub75_data_rgb888_program_init(pio, sm_data_b, data_prog_offs, DATA_BASE_PIN, pin_clk2);
             }
-            if (uses_gpio_serial_decoder(*this)) {
+            if (uses_serial_row_decoder(*this)) {
                 if (uses_dp3246_scan_path(*this)) {
-                    hub75_row_noaddr_dp3246_program_init(pio, sm_row_b, row_prog_offs, pin_stb2);
+                    hub75_row_serial_dp3246_program_init(pio, sm_row_b, row_prog_offs, pin_row_a, pin_stb2);
                 } else {
-                    hub75_row_noaddr_program_init(pio, sm_row_b, row_prog_offs, pin_stb2);
+                    hub75_row_serial_program_init(pio, sm_row_b, row_prog_offs, pin_row_a, pin_stb2);
                 }
             } else if (line_decoder == LINE_DECODER_TYPE595) {
                 if (uses_dp3246_scan_path(*this)) {
@@ -804,7 +764,6 @@ void Hub75::start(irq_handler_t handler) {
 }
 
 void Hub75::stop(irq_handler_t handler) {
-    shiftreg_row_preloaded = false;
     split_phase_b_active = false;
 
     irq_set_enabled(DMA_IRQ_0, false);
@@ -845,17 +804,17 @@ void Hub75::stop(irq_handler_t handler) {
     if(pio_sm_is_claimed(pio, sm_row)) {
         pio_sm_set_enabled(pio, sm_row, false);
         pio_sm_drain_tx_fifo(pio, sm_row);
-        if (uses_gpio_serial_decoder(*this)) {
+        if (uses_serial_row_decoder(*this)) {
           if (uses_dp3246_scan_path(*this)) {
                 if (inverted_stb) {
-                    pio_remove_program_and_unclaim_sm(&hub75_row_noaddr_dp3246_inverted_program, pio, sm_row, row_prog_offs);
+                    pio_remove_program_and_unclaim_sm(&hub75_row_serial_dp3246_inverted_program, pio, sm_row, row_prog_offs);
                 } else {
-                    pio_remove_program_and_unclaim_sm(&hub75_row_noaddr_dp3246_program, pio, sm_row, row_prog_offs);
+                    pio_remove_program_and_unclaim_sm(&hub75_row_serial_dp3246_program, pio, sm_row, row_prog_offs);
                 }
             } else if (inverted_stb) {
-                pio_remove_program_and_unclaim_sm(&hub75_row_noaddr_inverted_program, pio, sm_row, row_prog_offs);
+                pio_remove_program_and_unclaim_sm(&hub75_row_serial_inverted_program, pio, sm_row, row_prog_offs);
             } else {
-                pio_remove_program_and_unclaim_sm(&hub75_row_noaddr_program, pio, sm_row, row_prog_offs);
+                pio_remove_program_and_unclaim_sm(&hub75_row_serial_program, pio, sm_row, row_prog_offs);
             }
         } else if (line_decoder == LINE_DECODER_TYPE595) {
           if (uses_dp3246_scan_path(*this)) {
@@ -933,15 +892,6 @@ void __not_in_flash_func(Hub75::dma_complete)() {
         // Check that previous OEn pulse is finished, else things WILL get out of sequence
         hub75_wait_tx_stall(pio, sm_row);
 
-        if (uses_gpio_serial_decoder(*this)) {
-            if (shiftreg_row_preloaded) {
-                // Row 0 was already seeded during startup.
-                shiftreg_row_preloaded = false;
-            } else {
-                step_shiftreg_row(row);
-            }
-        }
-
         // Fully flush the pixel shifter before latching the next row.
         for (uint i = 0; i < end_of_row_dummy_pixels(); ++i) {
             pio_sm_put_blocking(pio, sm_data, 0);
@@ -983,14 +933,6 @@ void __not_in_flash_func(Hub75::dma_complete)() {
                 hub75_wait_tx_stall(pio, sm_row);
                 hub75_wait_tx_stall(pio, sm_row_b);
 
-                if (uses_gpio_serial_decoder(*this)) {
-                    if (shiftreg_row_preloaded) {
-                        shiftreg_row_preloaded = false;
-                    } else {
-                        step_shiftreg_row(row);
-                    }
-                }
-
                 for (uint i = 0; i < end_of_row_dummy_pixels(); ++i) {
                     pio_sm_put_blocking(pio, sm_data, 0);
                 }
@@ -1018,8 +960,9 @@ void __not_in_flash_func(Hub75::dma_complete)() {
 
                 hub75_wait_tx_stall(pio, sm_data_b);
 
-                // Latch row data, pulse output enable for new row.
-                pio_sm_put_blocking(pio, sm_row_b, encode_row_payload(row, bit));
+                // Latch row data, pulse output enable for new row. The serial row decoder
+                // is shared with phase A, which already stepped it to this row.
+                pio_sm_put_blocking(pio, sm_row_b, encode_row_payload(row, bit, false));
 
                 row++;
 
@@ -1050,7 +993,7 @@ void __not_in_flash_func(Hub75::dma_complete)() {
     }
 }
 
-uint32_t __not_in_flash_func(Hub75::encode_row_payload)(uint row, uint bit) const {
+uint32_t __not_in_flash_func(Hub75::encode_row_payload)(uint row, uint bit, bool step_serial_row) const {
 #if LOWER_BASE_BRIGHTNESS
     // New method prevents extremes and makes the overall shift more gradual.
     // The >> 1 cuts a brightness increment in half from what it was before.
@@ -1070,8 +1013,15 @@ uint32_t __not_in_flash_func(Hub75::encode_row_payload)(uint row, uint bit) cons
         return shift_low | (shift_high << 3) | (oe_width << 6);
     }
 
-    if (uses_gpio_serial_decoder(*this)) {
-        return oe_width << 5;
+    if (uses_serial_row_decoder(*this)) {
+        if (!step_serial_row) {
+            return oe_width << 9;
+        }
+        // Seed the shift register when wrapping back to row 0, otherwise shift in 0s.
+        uint32_t row_data = row == 0 ? 1u : 0u;
+        uint32_t shift_low = (1u << 1) | (row_data << 2);
+        uint32_t shift_high = shift_low | 1u;
+        return shift_low | (shift_high << 3) | (shift_low << 6) | (oe_width << 9);
     }
 
     return row | (oe_width << 5);

@@ -159,7 +159,7 @@ Direct row addressing path. Use this when the panel behaves like a normal direct
 
 ### `LINE_DECODER_SM5266P`
 
-GPIO-stepped serial row decoder path. The row select state is maintained outside the row PIO program and advanced explicitly in software.
+Serial row decoder path (A=row clock, B=BK, C=row data). The row PIO program shifts the decoder one row per latch, seeding a 1 on row 0.
 
 ### `LINE_DECODER_SM5368P`
 
@@ -201,7 +201,7 @@ Examples:
 
 - some FM6124-family panels work best with `SHIFT_DRIVER_FM6124`
 - some DP3246-like timing panels need the DP3246 runtime path but not the DP3246 startup sequence
-- some `SM5368P` panels behave like the current `SM5266P` software-stepped row-decoder path
+- some `SM5368P` panels behave like the current `SM5266P` serial row-decoder path
 
 So the enums are best understood as "select this driver behavior" rather than "the PCB is guaranteed to contain exactly this chip".
 

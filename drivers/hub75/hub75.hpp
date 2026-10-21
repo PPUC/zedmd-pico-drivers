@@ -189,7 +189,6 @@ class Hub75 {
 
     uint data_prog_offs = 0;
     uint row_prog_offs = 0;
-    bool shiftreg_row_preloaded = false;
     bool split_phase_b_active = false;
 
     uint brightness = 6;
@@ -277,16 +276,14 @@ class Hub75 {
     void start(irq_handler_t handler);
     void stop(irq_handler_t handler);
     void dma_complete();
-    uint32_t encode_row_payload(uint row, uint bit) const;
+    // step_serial_row=false keeps an SM5266P/SM5368P row decoder on its current row.
+    uint32_t encode_row_payload(uint row, uint bit, bool step_serial_row = true) const;
     int buffer_offset(uint x, uint y) const;
     uint panel_width() const;
     Pixel *row_buffer_ptr(uint row, uint phase) const;
     // Number of dummy pixels needed after each row before latching the next row.
     // Some shift-driver / line-decoder combinations need more trailing clocks.
     uint end_of_row_dummy_pixels() const;
-    // SM5266P/SM5368PF panels use a GPIO-stepped serial row decoder.
-    void init_shiftreg_rows();
-    void step_shiftreg_row(uint row) const;
     // Makes the draw buffer valid for partial updates after a flip().
     inline void prepare_partial_draw() {
         if (__builtin_expect(draw_stale, 0)) sync_draw_buffer();
