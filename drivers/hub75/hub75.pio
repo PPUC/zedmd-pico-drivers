@@ -96,11 +96,11 @@ pulse_loop:
 .side_set 2
 
 .wrap_target
-    out pins, 3 [6]    side 0x2 ; Deassert OEn, BK high, row data with CLK low
-    out pins, 3 [6]    side 0x2 ; Pulse row CLK high
-    out pins, 3 [6]    side 0x2 ; Row CLK low
+    out pins, 3 [7]    side 0x2 ; Deassert OEn, BK high, row data with CLK low
+    out pins, 3 [7]    side 0x2 ; Pulse row CLK high
+    out pins, 3 [7]    side 0x2 ; Row CLK low
     mov pins, null     side 0x2 ; Release BK and row data
-    out x, 23   [6]    side 0x3 ; Pulse LATCH, get OEn pulse width
+    out x, 23          side 0x3 ; Pulse LATCH, get OEn pulse width
 pulse_loop:
     jmp x-- pulse_loop side 0x0 ; Assert OEn for x+1 cycles
 .wrap
